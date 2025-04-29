@@ -1,0 +1,17 @@
+.Form {
+  background-color: lightgrey;
+  display: flex;
+  flex-direction: column;
+  padding: 4%;
+  width: 400px;
+  height: 300px;
+  justify-content: space-evenly;
+  box-shadow: 20px;
+  border-radius: 16px;
+  color: white;
+}
+.inputd {
+  width: 380px;
+  height: 30px;
+  border: none;
+}

@@ -1,0 +1,229 @@
+// App.js
+import React from "react";
+import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+import LoginForm from "./components/LoginForm";
+import DynamicForm from "./components/DynamicForm";
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<LoginForm />} />
+        <Route path="/form" element={<DynamicForm />} />
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;
+
+// components/LoginForm.js
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
+
+function LoginForm() {
+  const [rollNumber, setRollNumber] = useState("");
+  const [name, setName] = useState("");
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post("https://dynamic-form-generator-9rl7.onrender.com/create-user", {
+        rollNumber,
+        name,
+      });
+      localStorage.setItem("rollNumber", rollNumber);
+      navigate("/form");
+    } catch (err) {
+      alert("Failed to create user");
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="p-4">
+      <h2>Login</h2>
+      <input placeholder="Roll Number" value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} required />
+      <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+      <button type="submit">Login</button>
+    </form>
+  );
+}
+
+export default LoginForm;
+
+// components/DynamicForm.js
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import Section from "./Section";
+
+function DynamicForm() {
+  const [formData, setFormData] = useState(null);
+  const [currentSection, setCurrentSection] = useState(0);
+  const [responses, setResponses] = useState({});
+
+  const rollNumber = localStorage.getItem("rollNumber") || "";
+
+  useEffect(() => {
+    axios
+      .get(`https://dynamic-form-generator-9rl7.onrender.com/get-form?rollNumber=${rollNumber}`)
+      .then((res) => setFormData(res.data.form))
+      .catch(() => alert("Failed to fetch form"));
+  }, [rollNumber]);
+
+  const handleNext = (sectionData) => {
+    setResponses({ ...responses, [currentSection]: sectionData });
+    setCurrentSection((prev) => prev + 1);
+  };
+
+  const handlePrev = () => {
+    setCurrentSection((prev) => prev - 1);
+  };
+
+  const handleSubmit = (finalData) => {
+    const allData = { ...responses, [currentSection]: finalData };
+    console.log("Collected Form Data:", allData);
+  };
+
+  if (!formData) return <p>Loading...</p>;
+
+  const sections = formData.sections;
+  const isLast = currentSection === sections.length - 1;
+
+  return (
+    <div className="p-4">
+      <h2>{formData.formTitle}</h2>
+      <Section
+        section={sections[currentSection]}
+        onNext={handleNext}
+        onPrev={handlePrev}
+        onSubmit={handleSubmit}
+        showPrev={currentSection > 0}
+        isLast={isLast}
+      />
+    </div>
+  );
+}
+
+export default DynamicForm;
+
+// components/Section.js
+import React, { useState } from "react";
+import FieldRenderer from "./FieldRenderer";
+
+function Section({ section, onNext, onPrev, onSubmit, showPrev, isLast }) {
+  const [values, setValues] = useState({});
+  const [errors, setErrors] = useState({});
+
+  const validate = () => {
+    const newErrors = {};
+    section.fields.forEach((field) => {
+      if (field.required && !values[field.fieldId]) {
+        newErrors[field.fieldId] = field.validation?.message || "Required";
+      } else if (field.minLength && values[field.fieldId]?.length < field.minLength) {
+        newErrors[field.fieldId] = `Min length is ${field.minLength}`;
+      }
+    });
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleChange = (id, value) => {
+    setValues({ ...values, [id]: value });
+  };
+
+  const handleNext = () => {
+    if (validate()) onNext(values);
+  };
+
+  const handleFinalSubmit = () => {
+    if (validate()) onSubmit(values);
+  };
+
+  return (
+    <div className="p-2">
+      <h3>{section.title}</h3>
+      <p>{section.description}</p>
+      {section.fields.map((field) => (
+        <FieldRenderer
+          key={field.fieldId}
+          field={field}
+          value={values[field.fieldId] || ""}
+          onChange={handleChange}
+          error={errors[field.fieldId]}
+        />
+      ))}
+      {showPrev && <button onClick={onPrev}>Previous</button>}
+      {!isLast && <button onClick={handleNext}>Next</button>}
+      {isLast && <button onClick={handleFinalSubmit}>Submit</button>}
+    </div>
+  );
+}
+
+export default Section;
+
+// components/FieldRenderer.js
+import React from "react";
+
+function FieldRenderer({ field, value, onChange, error }) {
+  const handleInputChange = (e) => {
+    onChange(field.fieldId, e.target.value);
+  };
+
+  const renderInput = () => {
+    switch (field.type) {
+      case "text":
+      case "email":
+      case "tel":
+      case "date":
+        return <input type={field.type} placeholder={field.placeholder} value={value} onChange={handleInputChange} />;
+      case "textarea":
+        return <textarea placeholder={field.placeholder} value={value} onChange={handleInputChange} />;
+      case "dropdown":
+        return (
+          <select value={value} onChange={handleInputChange}>
+            <option value="">Select</option>
+            {field.options.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        );
+      case "radio":
+        return field.options.map((opt) => (
+          <label key={opt.value}>
+            <input type="radio" value={opt.value} checked={value === opt.value} onChange={handleInputChange} />
+            {opt.label}
+          </label>
+        ));
+      case "checkbox":
+        return field.options.map((opt) => (
+          <label key={opt.value}>
+            <input
+              type="checkbox"
+              checked={value?.includes(opt.value)}
+              onChange={(e) => {
+                const newValue = value || [];
+                if (e.target.checked) newValue.push(opt.value);
+                else newValue.splice(newValue.indexOf(opt.value), 1);
+                onChange(field.fieldId, [...newValue]);
+              }}
+            />
+            {opt.label}
+          </label>
+        ));
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="mb-2">
+      <label>{field.label}</label>
+      {renderInput()}
+      {error && <p style={{ color: "red" }}>{error}</p>}
+    </div>
+  );
+}
+
+export default FieldRenderer;
