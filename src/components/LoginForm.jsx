@@ -1,16 +1,16 @@
 import React, { useState } from "react";
 import axios from "axios";
-import "./loginForm.css"; // Make sure this CSS file is correct
+import "./loginForm.css";
 
 function LoginForm() {
   const [rollNumber, setRollNumber] = useState("");
-  const [formData, setFormData] = useState(null); // Store dynamic form data
+  const [formData, setFormData] = useState(null); 
   const [formResponse, setFormResponse] = useState({});
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // Fetch dynamic form data based on the roll number
+      
       const response = await axios.get(
         `https://dynamic-form-generator-9rl7.onrender.com/get-form?rollNumber=${rollNumber}`
       );
